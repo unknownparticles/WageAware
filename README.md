@@ -36,8 +36,8 @@ python -m http.server 8000
 ## 技术栈
 
 - **纯 HTML + CSS + JavaScript** - 无需构建工具
-- **Tailwind CSS** - 通过 CDN 引入
-- **Chart.js** - 数据可视化
+- **自定义 CSS** - 轻量级工具类样式系统
+- **Chart.js** - 通过 CDN 引入，用于数据可视化
 - **LocalStorage API** - 数据持久化
 
 ## 项目结构
@@ -45,6 +45,8 @@ python -m http.server 8000
 ```
 WageAware/
 ├── index.html          # 主入口文件
+├── css/
+│   └── style.css       # 自定义样式系统
 ├── js/
 │   ├── constants.js    # 常量定义
 │   ├── utils.js        # 工具函数和计算逻辑
