@@ -1,6 +1,6 @@
 
 import { Settings, WorkScheduleType, Holiday } from "../types";
-import { format, getDaysInMonth, isSaturday, isSunday, parse, isSameDay, addDays } from "date-fns";
+import { format, getDaysInMonth, isSaturday, isSunday, parse, addDays } from "date-fns";
 
 // Parse "HH:mm" to minutes from midnight
 export const parseTimeStr = (timeStr: string): number => {
@@ -13,7 +13,7 @@ export const getStandardWorkMinutes = (settings: Settings): number => {
   const start = parseTimeStr(settings.workStartTime);
   const end = parseTimeStr(settings.workEndTime);
   let duration = end - start;
-  
+
   // Handle overnight shifts (e.g. 22:00 to 06:00)
   if (duration < 0) duration += 24 * 60;
 
@@ -24,7 +24,7 @@ export const getStandardWorkMinutes = (settings: Settings): number => {
     if (lunchDuration < 0) lunchDuration += 24 * 60;
     duration -= lunchDuration;
   }
-  
+
   return duration > 0 ? duration : 0;
 };
 
@@ -41,10 +41,10 @@ export const getWorkingDaysInMonth = (date: Date, type: WorkScheduleType, holida
 
   for (let day = 1; day <= daysInMonth; day++) {
     const current = new Date(date.getFullYear(), date.getMonth(), day);
-    
+
     // If it's a holiday, it counts as a non-working day regardless of weekend status
     if (isHoliday(current, holidays)) {
-      continue; 
+      continue;
     }
 
     if (type === WorkScheduleType.NoWeekend) {
@@ -65,7 +65,7 @@ export const getRates = (settings: Settings, date: Date = new Date()) => {
   const dailySalary = settings.monthlySalary / workingDays;
   const standardMinutes = getStandardWorkMinutes(settings);
   const standardHourlyRate = dailySalary / (standardMinutes / 60);
-  
+
   return { dailySalary, standardHourlyRate, standardMinutes };
 };
 
@@ -77,12 +77,12 @@ export const calculateLiveMetrics = (
 ) => {
   const startDate = new Date(startTime);
   const { dailySalary, standardHourlyRate } = getRates(settings, startDate);
-  
+
   // Normalize times to today's date for comparison
   const today = new Date(now);
   const workStart = parse(settings.workStartTime, "HH:mm", today);
   const workEnd = parse(settings.workEndTime, "HH:mm", today);
-  
+
   let endTimeDate = workEnd;
   if (workEnd < workStart) {
     endTimeDate = new Date(workEnd.getTime() + 24 * 60 * 60 * 1000);
@@ -93,33 +93,33 @@ export const calculateLiveMetrics = (
 
   // Calculate actual worked minutes (deducting lunch if passed)
   let workedMinutes = currentWorkMinutes;
-  
+
   if (settings.hasLunchBreak) {
     const lunchStart = parse(settings.lunchStartTime, "HH:mm", today);
     const lunchEnd = parse(settings.lunchEndTime, "HH:mm", today);
-    
+
     const nowTime = now;
     const lunchStartTime = lunchStart.getTime();
     const lunchEndTime = lunchEnd.getTime();
 
     if (startTime < lunchStartTime && nowTime > lunchStartTime) {
-       if (nowTime < lunchEndTime) {
-         workedMinutes = (lunchStartTime - startTime) / 1000 / 60;
-       } else {
-         const lunchDurationMin = (lunchEndTime - lunchStartTime) / 1000 / 60;
-         workedMinutes -= lunchDurationMin;
-       }
+      if (nowTime < lunchEndTime) {
+        workedMinutes = (lunchStartTime - startTime) / 1000 / 60;
+      } else {
+        const lunchDurationMin = (lunchEndTime - lunchStartTime) / 1000 / 60;
+        workedMinutes -= lunchDurationMin;
+      }
     } else if (startTime >= lunchStartTime && startTime < lunchEndTime) {
-       if (nowTime > lunchEndTime) {
-          workedMinutes = (nowTime - lunchEndTime) / 1000 / 60;
-       } else {
-          workedMinutes = 0;
-       }
+      if (nowTime > lunchEndTime) {
+        workedMinutes = (nowTime - lunchEndTime) / 1000 / 60;
+      } else {
+        workedMinutes = 0;
+      }
     }
   }
 
   const isOvertime = now > endTimeDate.getTime();
-  
+
   let moneyEarned = 0;
   let displayRate = standardHourlyRate;
 
@@ -128,7 +128,7 @@ export const calculateLiveMetrics = (
     moneyEarned = (validMinutes / 60) * standardHourlyRate;
   } else {
     // Overtime: Money capped at daily salary, rate decreases
-    moneyEarned = dailySalary; 
+    moneyEarned = dailySalary;
     const totalHoursWorked = Math.max(0.1, workedMinutes / 60);
     displayRate = dailySalary / totalHoursWorked;
   }
@@ -144,45 +144,45 @@ export const calculateLiveMetrics = (
 
 // Calculate leave value
 export const calculateLeaveValue = (
-    settings: Settings, 
-    startStr: string, // HH:mm
-    endStr: string,   // HH:mm
-    ratio: number
+  settings: Settings,
+  startStr: string, // HH:mm
+  endStr: string,   // HH:mm
+  ratio: number
 ) => {
-    const { standardHourlyRate } = getRates(settings);
-    
-    const start = parseTimeStr(startStr);
-    const end = parseTimeStr(endStr);
-    
-    // Calculate raw duration in minutes
-    let duration = end - start;
-    if (duration < 0) duration += 24 * 60; // overnight check
-    
-    // Subtract lunch if applicable
-    if (settings.hasLunchBreak) {
-        const lunchStart = parseTimeStr(settings.lunchStartTime);
-        const lunchEnd = parseTimeStr(settings.lunchEndTime);
-        
-        // Simple overlap check: assumes leave happens within a single day
-        const leaveInterval = { start, end };
-        const lunchInterval = { start: lunchStart, end: lunchEnd };
+  const { standardHourlyRate } = getRates(settings);
 
-        const overlapStart = Math.max(leaveInterval.start, lunchInterval.start);
-        const overlapEnd = Math.min(leaveInterval.end, lunchInterval.end);
+  const start = parseTimeStr(startStr);
+  const end = parseTimeStr(endStr);
 
-        if (overlapEnd > overlapStart) {
-            duration -= (overlapEnd - overlapStart);
-        }
+  // Calculate raw duration in minutes
+  let duration = end - start;
+  if (duration < 0) duration += 24 * 60; // overnight check
+
+  // Subtract lunch if applicable
+  if (settings.hasLunchBreak) {
+    const lunchStart = parseTimeStr(settings.lunchStartTime);
+    const lunchEnd = parseTimeStr(settings.lunchEndTime);
+
+    // Simple overlap check: assumes leave happens within a single day
+    const leaveInterval = { start, end };
+    const lunchInterval = { start: lunchStart, end: lunchEnd };
+
+    const overlapStart = Math.max(leaveInterval.start, lunchInterval.start);
+    const overlapEnd = Math.min(leaveInterval.end, lunchInterval.end);
+
+    if (overlapEnd > overlapStart) {
+      duration -= (overlapEnd - overlapStart);
     }
+  }
 
-    const hours = duration / 60;
-    const earned = hours * standardHourlyRate * ratio;
+  const hours = duration / 60;
+  const earned = hours * standardHourlyRate * ratio;
 
-    return {
-        earnedAmount: earned,
-        durationMs: duration * 60 * 1000,
-        hourlyRate: standardHourlyRate * ratio // Effective rate for this period
-    };
+  return {
+    earnedAmount: earned,
+    durationMs: duration * 60 * 1000,
+    hourlyRate: standardHourlyRate * ratio // Effective rate for this period
+  };
 };
 
 // Calculate manual work entry value (missed punch)
@@ -193,11 +193,11 @@ export const calculateManualWorkValue = (
   endStr: string // HH:mm
 ) => {
   const date = parse(dateStr, 'yyyy-MM-dd', new Date());
-  
+
   // Construct timestamps
   const start = parse(startStr, 'HH:mm', date);
   let end = parse(endStr, 'HH:mm', date);
-  
+
   // Handle overnight if end time is smaller than start time
   if (end < start) {
     end = addDays(end, 1);
@@ -205,14 +205,14 @@ export const calculateManualWorkValue = (
 
   // Reuse the live metrics logic
   const metrics = calculateLiveMetrics(settings, start.getTime(), end.getTime());
-  
+
   // Recalculate overtime duration for stats
   // Standard End Time for that specific day
   const standardEnd = parse(settings.workEndTime, 'HH:mm', date);
   let standardEndTime = standardEnd.getTime();
   if (standardEnd < start) {
-      // If shift starts late, standard end might be next day
-       standardEndTime += 24 * 60 * 60 * 1000;
+    // If shift starts late, standard end might be next day
+    standardEndTime += 24 * 60 * 60 * 1000;
   }
 
   const overtimeDurationMs = Math.max(0, end.getTime() - standardEndTime);

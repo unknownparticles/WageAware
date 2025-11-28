@@ -1,20 +1,38 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# WageAware - 打工人计算器
 
-# Run and deploy your AI Studio app
+这是一个帮助"打工人"实时追踪薪资、工时和加班情况的计算器应用。
 
-This contains everything you need to run your app locally.
+## 功能特点
 
-View your app in AI Studio: https://ai.studio/apps/drive/1KM4M7uKv6uE_40VL1D91NuT91R3OmCIT
+- **实时薪资追踪**: 根据设定的月薪和工作时间，实时计算当前已赚取的薪资。
+- **工时统计**: 记录每日工作时长，自动计算加班时间。
+- **多种视图**:
+    - **打卡**: 每日上下班打卡，实时显示今日收益。
+    - **日历**: 查看历史打卡记录，补卡或记录请假。
+    - **统计**: 可视化展示收入和工时趋势。
+- **隐私安全**: 所有数据仅保存在本地浏览器中，不会上传到任何服务器。
 
-## Run Locally
+## 部署说明
 
-**Prerequisites:**  Node.js
+本项目支持直接部署到 GitHub Pages。
 
+1. Fork 本仓库。
+2. 在仓库设置中开启 GitHub Pages: `Settings` > `Pages` > `Source` 选择 `GitHub Actions`。
+3. 每次推送到 `main` 或 `master` 分支时，GitHub Actions 会自动构建并部署应用。
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+## 本地运行
+
+**前置要求:** Node.js
+
+1. 安装依赖:
+   ```bash
+   npm install
+   ```
+2. 启动开发服务器:
+   ```bash
+   npm run dev
+   ```
+3. 构建生产版本:
+   ```bash
+   npm run build
+   ```
