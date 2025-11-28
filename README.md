@@ -14,11 +14,25 @@
 
 ## 部署说明
 
-本项目支持直接部署到 GitHub Pages。
+本项目采用预构建静态文件的方式部署到 GitHub Pages，无需在 GitHub 上运行构建命令。
 
-1. Fork 本仓库。
-2. 在仓库设置中开启 GitHub Pages: `Settings` > `Pages` > `Source` 选择 `GitHub Actions`。
-3. 每次推送到 `main` 或 `master` 分支时，GitHub Actions 会自动构建并部署应用。
+1. **本地构建**:
+   在本地运行以下命令生成 `docs` 目录：
+   ```bash
+   npm run build
+   ```
+   确保 `docs` 目录包含 `index.html` 和 `assets` 文件夹。
+
+2. **提交代码**:
+   将 `docs` 目录及其内容提交并推送到 GitHub 仓库。
+
+3. **配置 GitHub Pages**:
+   - 进入仓库的 `Settings` > `Pages`。
+   - 在 `Build and deployment` 部分，`Source` 选择 `Deploy from a branch`。
+   - 在 `Branch` 部分，选择 `main` (或 `master`) 分支，文件夹选择 `/docs`。
+   - 点击 `Save`。
+
+GitHub Pages 将会自动部署 `docs` 目录中的内容。
 
 ## 本地运行
 
