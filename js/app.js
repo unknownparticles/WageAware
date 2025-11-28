@@ -345,6 +345,19 @@ class WageAwareApp {
           <div class="text-2xl font-mono text-emerald-400 font-bold">
             ${formatCurrency(stats.avgHourlyRate)}/时
           </div>
+          <!-- 麦当劳参照 -->
+          <div class="mt-2 pt-2 border-t border-gray-700/50">
+            <div class="flex items-center justify-between text-[10px]">
+              <span class="text-gray-500">🍔 麦当劳</span>
+              <span class="text-gray-400">¥12/时</span>
+            </div>
+            ${stats.avgHourlyRate > 12 ?
+        `<div class="text-[10px] text-emerald-400 mt-1">↑ 高 ${((stats.avgHourlyRate / 12 - 1) * 100).toFixed(0)}%</div>` :
+        stats.avgHourlyRate < 12 ?
+          `<div class="text-[10px] text-red-400 mt-1">↓ 低 ${((1 - stats.avgHourlyRate / 12) * 100).toFixed(0)}%</div>` :
+          `<div class="text-[10px] text-gray-400 mt-1">= 持平</div>`
+      }
+          </div>
         </div>
         <div class="bg-surface p-4 rounded-xl border border-gray-700">
           <div class="flex items-center gap-2 mb-2 text-gray-400">
