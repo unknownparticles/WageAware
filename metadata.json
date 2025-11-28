@@ -1,0 +1,5 @@
+{
+  "name": "WageAware - Real-time Work Value",
+  "description": "A multi-platform work hour calculator that visualizes your earnings in real-time. Tracks salary, overtime depreciation, and provides historical analytics.",
+  "requestFramePermissions": []
+}
