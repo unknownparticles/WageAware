@@ -1,51 +1,10 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>打工人薪资计算器</title>
-    <!-- We keep Tailwind CDN for simplicity in this specific setup, 
-         though typically we would bundle it in a full production build -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-      tailwind.config = {
-        theme: {
-          extend: {
-            colors: {
-              primary: '#10b981', // emerald-500
-              danger: '#ef4444', // red-500
-              dark: '#0f172a', // slate-900
-              surface: '#1e293b', // slate-800
-            },
-            animation: {
-              'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
-            }
-          },
-        },
-      };
-    </script>
-    <style>
-      body {
-        background-color: #0f172a;
-        color: #f8fafc;
-        font-family: 'Inter', system-ui, -apple-system, sans-serif;
-      }
-      /* Custom scrollbar for stats */
-      ::-webkit-scrollbar {
-        width: 8px;
-        height: 8px;
-      }
-      ::-webkit-scrollbar-track {
-        background: #1e293b; 
-      }
-      ::-webkit-scrollbar-thumb {
-        background: #334155; 
-        border-radius: 4px;
-      }
-      ::-webkit-scrollbar-thumb:hover {
-        background: #475569; 
-      }
-    </style>
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>打工人薪资计算器</title>
   <script type="importmap">
 {
   "imports": {
@@ -61,8 +20,10 @@
 }
 </script>
 </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/index.tsx"></script>
-  </body>
+
+<body>
+  <div id="root"></div>
+  <script type="module" src="/index.tsx"></script>
+</body>
+
 </html>
