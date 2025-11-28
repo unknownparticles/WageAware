@@ -1053,18 +1053,33 @@ class WageAwareApp {
   handleStopWork() {
     if (!this.currentSession) return;
 
-    const finalMetrics = calculateLiveMetrics(this.settings, this.currentSession.startTime, Date.now());
     const endTime = Date.now();
+    const totalDurationMs = endTime - this.currentSession.startTime;
+
+    // 计算标准工作时长（分钟）
     const standardMinutes = getStandardWorkMinutes(this.settings);
-    const overtimeMs = finalMetrics.isOvertime ?
-      (endTime - (this.currentSession.startTime + (standardMinutes * 60 * 1000))) : 0;
+    const standardMs = standardMinutes * 60 * 1000;
+
+    // 计算日薪和时薪
+    const rates = getRates(this.settings);
+    const dailySalary = rates.dailyRate;
+
+    // 不管工作多久，下班后就获得全部日薪
+    const earnedAmount = dailySalary;
+
+    // 计算加班时长（如果工作超过标准时长）
+    const overtimeDurationMs = totalDurationMs > standardMs ? (totalDurationMs - standardMs) : 0;
+
+    // 计算有效时薪（总收入/实际工时）
+    const actualHours = totalDurationMs / (1000 * 60 * 60);
+    const effectiveHourlyRate = actualHours > 0 ? earnedAmount / actualHours : rates.hourlyRate;
 
     const stat = {
       date: this.currentSession.date,
-      totalDurationMs: endTime - this.currentSession.startTime,
-      overtimeDurationMs: Math.max(0, overtimeMs),
-      earnedAmount: finalMetrics.moneyEarned,
-      effectiveHourlyRate: finalMetrics.displayRate,
+      totalDurationMs: totalDurationMs,
+      overtimeDurationMs: overtimeDurationMs,
+      earnedAmount: earnedAmount,
+      effectiveHourlyRate: effectiveHourlyRate,
       type: 'work'
     };
 
@@ -1089,7 +1104,16 @@ class WageAwareApp {
         if (today.getTime() < Date.now()) {
           this.currentSession.startTime = today.getTime();
           Storage.saveCurrentSession(this.currentSession);
+
+          // 重新启动计时器以更新显示
+          this.stopTimer();
           this.switchView('tracker');
+          // 立即更新一次界面
+          setTimeout(() => {
+            if (this.currentSession) {
+              this.startTimer();
+            }
+          }, 100);
         } else {
           alert('上班时间不能晚于现在！');
         }
