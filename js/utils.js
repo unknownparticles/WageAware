@@ -391,6 +391,40 @@ function formatDurationChinese(ms) {
     return `${minutes}分钟`;
 }
 
+// 合并两条工作记录（取最早开始时间和最晚结束时间）
+function mergeWorkRecords(settings, record1, record2) {
+    // 从记录中提取开始和结束时间
+    const start1 = new Date(record1.date);
+    const end1 = new Date(start1.getTime() + record1.totalDurationMs);
+
+    const start2 = new Date(record2.date);
+    const end2 = new Date(start2.getTime() + record2.totalDurationMs);
+
+    // 取最早开始时间和最晚结束时间
+    const mergedStart = start1 < start2 ? start1 : start2;
+    const mergedEnd = end1 > end2 ? end1 : end2;
+
+    // 计算合并后的总时长
+    const totalDurationMs = mergedEnd.getTime() - mergedStart.getTime();
+
+    // 使用合并后的时间范围重新计算工资
+    const startStr = formatTime(mergedStart);
+    const endStr = formatTime(mergedEnd);
+    const dateStr = formatDate(mergedStart);
+
+    const result = calculateManualWorkValue(settings, dateStr, startStr, endStr);
+
+    return {
+        date: mergedStart.toISOString(),
+        totalDurationMs: result.totalDurationMs,
+        overtimeDurationMs: result.overtimeDurationMs,
+        earnedAmount: result.earnedAmount,
+        effectiveHourlyRate: result.effectiveHourlyRate,
+        type: 'work',
+        note: record1.note || record2.note || '合并记录'
+    };
+}
+
 // 生成唯一 ID
 function generateId() {
     return Date.now().toString(36) + Math.random().toString(36).substr(2);
