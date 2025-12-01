@@ -120,6 +120,45 @@ function subMonths(date, months) {
     return addMonths(date, -months);
 }
 
+// 添加周数
+function addWeeks(date, weeks) {
+    const result = new Date(date);
+    result.setDate(result.getDate() + (weeks * 7));
+    return result;
+}
+
+// 添加年数
+function addYears(date, years) {
+    const result = new Date(date);
+    result.setFullYear(result.getFullYear() + years);
+    return result;
+}
+
+// 获取指定日期所在周的7天（周一到周日）
+function getWeekDays(date) {
+    const startDay = startOfWeek(date);
+    const days = [];
+    for (let i = 0; i < 7; i++) {
+        days.push(addDays(startDay, i));
+    }
+    return days;
+}
+
+// 获取指定年份的12个月份
+function getMonthsInYear(year) {
+    const months = [];
+    for (let i = 0; i < 12; i++) {
+        months.push(new Date(year, i, 1));
+    }
+    return months;
+}
+
+// 获取周的结束日（周日）
+function endOfWeek(date) {
+    const startDay = startOfWeek(date);
+    return addDays(startDay, 6);
+}
+
 // 获取指定月份的所有日期（包括前后填充的日期用于日历视图）
 function getCalendarDays(date) {
     const firstDay = startOfMonth(date);
@@ -391,7 +430,253 @@ function formatDurationChinese(ms) {
     return `${minutes}分钟`;
 }
 
-// 合并两条工作记录（取最早开始时间和最晚结束时间）
+// 格式化时长（天+小时）
+function formatDurationDaysHours(ms) {
+    const totalMinutes = Math.floor(ms / 1000 / 60);
+    const totalHours = Math.floor(totalMinutes / 60);
+    const days = Math.floor(totalHours / 24);
+    const hours = totalHours % 24;
+    const minutes = totalMinutes % 60;
+
+    if (days > 0) {
+        if (hours > 0) {
+            return `${days}天${hours}小时`;
+        }
+        return `${days}天`;
+    }
+    if (totalHours > 0) {
+        return `${totalHours}小时${minutes}分钟`;
+    }
+    return `${minutes}分钟`;
+}
+
+// 根据加班天数生成调侃文案
+function getOvertimeFunMessage(overtimeDays, period) {
+    if (period === 'week') {
+        if (overtimeDays >= 5) {
+            return '🤯 你本周上了两周班！';
+        }
+    } else if (period === 'month') {
+        if (overtimeDays >= 22) {
+            return '😱 你本月上了两个月的班！注意身体啊！';
+        } else if (overtimeDays >= 10) {
+            return '😅 真是劳模！本月多上了两周班';
+        } else if (overtimeDays >= 5) {
+            return '😊 恭喜你本月多加班一周';
+        }
+    }
+    return null;
+}
+
+// 计算周统计数据
+function calculateWeekStats(history, settings, weekDate) {
+    const weekStart = startOfWeek(weekDate);
+    const weekEnd = endOfWeek(weekDate);
+
+    // 过滤本周数据
+    const weekHistory = history.filter(entry => {
+        const entryDate = new Date(entry.date);
+        return entryDate >= weekStart && entryDate <= weekEnd;
+    });
+
+    if (weekHistory.length === 0) return null;
+
+    // 获取本周七天数据（周一到周日）
+    const weekDays = getWeekDays(weekDate);
+    const dailyData = weekDays.map(day => {
+        const dateStr = formatDate(day);
+        const dayEntries = weekHistory.filter(e => formatDate(new Date(e.date)) === dateStr);
+
+        if (dayEntries.length === 0) {
+            return {
+                date: day,
+                label: formatDateChinese(day),
+                hourlyRate: 0,
+                worked: false
+            };
+        }
+
+        // 合并当天所有记录
+        const totalEarned = dayEntries.reduce((sum, e) => sum + e.earnedAmount, 0);
+        const totalDuration = dayEntries.reduce((sum, e) => sum + e.totalDurationMs, 0);
+        const avgRate = totalDuration > 0 ? totalEarned / (totalDuration / 1000 / 60 / 60) : 0;
+
+        return {
+            date: day,
+            label: formatDateChinese(day),
+            hourlyRate: avgRate,
+            worked: true
+        };
+    });
+
+    // 计算平均指标
+    const totalEarned = weekHistory.reduce((sum, e) => sum + e.earnedAmount, 0);
+    const totalDuration = weekHistory.reduce((sum, e) => sum + e.totalDurationMs, 0);
+    const totalOvertime = weekHistory.reduce((sum, e) => sum + e.overtimeDurationMs, 0);
+
+    const avgHourlyRate = totalDuration > 0 ? totalEarned / (totalDuration / 1000 / 60 / 60) : 0;
+    const avgDailySalary = totalEarned / 7; // 平均到7天
+
+    // 计算加班天数
+    const standardMinutes = getStandardWorkMinutes(settings);
+    const standardDayMs = standardMinutes * 60 * 1000;
+    const overtimeDays = Math.floor(totalOvertime / standardDayMs);
+
+    return {
+        weekStart,
+        weekEnd,
+        dailyData,
+        avgHourlyRate,
+        avgDailySalary,
+        avgOvertimeDuration: totalOvertime / weekHistory.length,
+        totalOvertimeDuration: totalOvertime,
+        overtimeDays,
+        funMessage: getOvertimeFunMessage(overtimeDays, 'week'),
+        totalEarned
+    };
+}
+
+// 计算月统计数据
+function calculateMonthStats(history, settings, monthDate) {
+    const monthStart = startOfMonth(monthDate);
+    const monthEnd = endOfMonth(monthDate);
+
+    // 过滤本月数据
+    const monthHistory = history.filter(entry => {
+        const entryDate = new Date(entry.date);
+        return entryDate >= monthStart && entryDate <= monthEnd;
+    });
+
+    // 计算工作日信息
+    const workingDaysInMonth = getWorkingDaysInMonth(monthDate, settings.scheduleType, settings.holidays);
+    const workedDays = new Set(monthHistory.map(e => formatDate(new Date(e.date)))).size;
+
+    if (monthHistory.length === 0) return null;
+
+    // 计算各项指标
+    const totalEarned = monthHistory.reduce((sum, e) => sum + e.earnedAmount, 0);
+    const totalDuration = monthHistory.reduce((sum, e) => sum + e.totalDurationMs, 0);
+    const totalOvertime = monthHistory.reduce((sum, e) => sum + e.overtimeDurationMs, 0);
+
+    const avgHourlyRate = totalDuration > 0 ? totalEarned / (totalDuration / 1000 / 60 / 60) : 0;
+    const avgDailySalary = workedDays > 0 ? totalEarned / workedDays : 0;
+
+    // 计算加班天数
+    const standardMinutes = getStandardWorkMinutes(settings);
+    const standardDayMs = standardMinutes * 60 * 1000;
+    const overtimeDays = Math.floor(totalOvertime / standardDayMs);
+
+    // 计算当前日薪（按月进度）
+    const today = new Date();
+    const daysInMonth = getDaysInMonth(monthDate);
+    const currentDay = isSameMonth(today, monthDate) ? today.getDate() : daysInMonth;
+    const monthProgress = currentDay / daysInMonth;
+    const currentDailySalary = (settings.monthlySalary * monthProgress) / workingDaysInMonth;
+
+    // 按天或按周聚合数据用于图表
+    const dailyData = [];
+    for (let day = 1; day <= daysInMonth; day++) {
+        const current = new Date(monthDate.getFullYear(), monthDate.getMonth(), day);
+        const dateStr = formatDate(current);
+        const dayEntries = monthHistory.filter(e => formatDate(new Date(e.date)) === dateStr);
+
+        if (dayEntries.length > 0) {
+            const dayEarned = dayEntries.reduce((sum, e) => sum + e.earnedAmount, 0);
+            const dayDuration = dayEntries.reduce((sum, e) => sum + e.totalDurationMs, 0);
+            const dayRate = dayDuration > 0 ? dayEarned / (dayDuration / 1000 / 60 / 60) : 0;
+
+            dailyData.push({
+                date: current,
+                label: `${day}日`,
+                hourlyRate: dayRate,
+                worked: true
+            });
+        }
+    }
+
+    return {
+        monthStart,
+        monthEnd,
+        workingDaysInMonth,
+        workedDays,
+        overtimeDays,
+        avgHourlyRate,
+        avgDailySalary,
+        currentDailySalary,
+        avgOvertimeDuration: totalOvertime / monthHistory.length,
+        totalOvertimeDuration: totalOvertime,
+        funMessage: getOvertimeFunMessage(overtimeDays, 'month'),
+        totalEarned,
+        dailyData,
+        monthProgress
+    };
+}
+
+// 计算年统计数据
+function calculateYearStats(history, settings, yearDate) {
+    const year = yearDate.getFullYear();
+    const yearStart = new Date(year, 0, 1);
+    const yearEnd = new Date(year, 11, 31, 23, 59, 59);
+
+    // 过滤本年数据
+    const yearHistory = history.filter(entry => {
+        const entryDate = new Date(entry.date);
+        return entryDate >= yearStart && entryDate <= yearEnd;
+    });
+
+    if (yearHistory.length === 0) return null;
+
+    // 按月聚合数据
+    const monthlyData = [];
+    for (let month = 0; month < 12; month++) {
+        const monthDate = new Date(year, month, 1);
+        const monthEntries = yearHistory.filter(entry => {
+            const entryDate = new Date(entry.date);
+            return entryDate.getMonth() === month;
+        });
+
+        if (monthEntries.length > 0) {
+            const monthEarned = monthEntries.reduce((sum, e) => sum + e.earnedAmount, 0);
+            const monthDuration = monthEntries.reduce((sum, e) => sum + e.totalDurationMs, 0);
+            const monthAvgRate = monthDuration > 0 ? monthEarned / (monthDuration / 1000 / 60 / 60) : 0;
+
+            monthlyData.push({
+                month: monthDate,
+                label: `${month + 1}月`,
+                avgHourlyRate: monthAvgRate,
+                totalEarned: monthEarned
+            });
+        } else {
+            monthlyData.push({
+                month: monthDate,
+                label: `${month + 1}月`,
+                avgHourlyRate: 0,
+                totalEarned: 0
+            });
+        }
+    }
+
+    // 计算年度指标
+    const totalEarned = yearHistory.reduce((sum, e) => sum + e.earnedAmount, 0);
+    const totalDuration = yearHistory.reduce((sum, e) => sum + e.totalDurationMs, 0);
+    const totalOvertime = yearHistory.reduce((sum, e) => sum + e.overtimeDurationMs, 0);
+
+    const workedDays = new Set(yearHistory.map(e => formatDate(new Date(e.date)))).size;
+    const avgDailySalary = workedDays > 0 ? totalEarned / workedDays : 0;
+    const avgMonthlySalary = totalEarned / 12;
+
+    return {
+        year,
+        monthlyData,
+        totalOvertimeDuration: totalOvertime,
+        avgDailySalary,
+        avgMonthlySalary,
+        totalEarned,
+        workedDays
+    };
+}
+
+// 生成唯一 ID
 function mergeWorkRecords(settings, record1, record2) {
     // 从记录中提取开始和结束时间
     const start1 = new Date(record1.date);

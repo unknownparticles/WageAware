@@ -10,6 +10,12 @@ class WageAwareApp {
     this.animationFrame = null;
     this.chart = null;
 
+    // 统计视图状态
+    this.currentStatsWeek = null;
+    this.currentStatsMonth = null;
+    this.currentStatsYear = null;
+    this.currentStatsPeriod = 'week'; // week, month, year
+
     // 模态框状态
     this.showModal = false;
     this.modalType = 'Annual'; // Annual, Sick, Personal, Work
@@ -328,63 +334,234 @@ class WageAwareApp {
   }
 
   renderStatsContent(period) {
-    const stats = this.calculateStats(period);
+    // Initialize current period dates if not set
+    if (!this.currentStatsWeek) this.currentStatsWeek = new Date();
+    if (!this.currentStatsMonth) this.currentStatsMonth = new Date();
+    if (!this.currentStatsYear) this.currentStatsYear = new Date();
 
-    if (!stats) {
-      return '<div class="text-center text-gray-500 py-10">此时间段无数据。</div>';
+    this.currentStatsPeriod = period;
+
+    let stats, periodLabel, navigationHtml;
+
+    if (period === 'week') {
+      stats = calculateWeekStats(this.history, this.settings, this.currentStatsWeek);
+      const weekStart = startOfWeek(this.currentStatsWeek);
+      const weekEnd = endOfWeek(this.currentStatsWeek);
+      periodLabel = `${formatDate(weekStart)} ~ ${formatDate(weekEnd)}`;
+      navigationHtml = `
+        <div class="flex items-center justify-between mb-4">
+          <button id="prev-period" class="p-2 hover:bg-surface rounded">${Icons.ChevronLeft}</button>
+          <h3 class="text-sm font-bold text-white">${periodLabel}</h3>
+          <button id="next-period" class="p-2 hover:bg-surface rounded">${Icons.ChevronRight}</button>
+        </div>
+      `;
+    } else if (period === 'month') {
+      stats = calculateMonthStats(this.history, this.settings, this.currentStatsMonth);
+      periodLabel = `${this.currentStatsMonth.getFullYear()}年${this.currentStatsMonth.getMonth() + 1}月`;
+      navigationHtml = `
+        <div class="flex items-center justify-between mb-4">
+          <button id="prev-period" class="p-2 hover:bg-surface rounded">${Icons.ChevronLeft}</button>
+          <h3 class="text-sm font-bold text-white">${periodLabel}</h3>
+          <button id="next-period" class="p-2 hover:bg-surface rounded">${Icons.ChevronRight}</button>
+        </div>
+      `;
+    } else { // year
+      stats = calculateYearStats(this.history, this.settings, this.currentStatsYear);
+      periodLabel = `${this.currentStatsYear.getFullYear()}年`;
+      navigationHtml = `
+        <div class="flex items-center justify-between mb-4">
+          <button id="prev-period" class="p-2 hover:bg-surface rounded">${Icons.ChevronLeft}</button>
+          <h3 class="text-sm font-bold text-white">${periodLabel}</h3>
+          <button id="next-period" class="p-2 hover:bg-surface rounded">${Icons.ChevronRight}</button>
+        </div>
+      `;
     }
 
-    return `
-      <!-- Cards -->
-      <div class="grid grid-cols-2 gap-3">
-        <div class="bg-surface p-4 rounded-xl border border-gray-700">
-          <div class="flex items-center gap-2 mb-2 text-gray-400">
-            ${Icons.DollarSign.replace('width="24"', 'width="16"').replace('height="24"', 'height="16"')}
-            <span class="text-xs uppercase font-bold">平均时薪</span>
-          </div>
-          <div class="text-2xl font-mono text-emerald-400 font-bold">
-            ${formatCurrency(stats.avgHourlyRate)}/时
-          </div>
-          <!-- 麦当劳参照 -->
-          <div class="mt-2 pt-2 border-t border-gray-700/50">
-            <div class="flex items-center justify-between text-[10px]">
-              <span class="text-gray-500">🍔 麦当劳</span>
-              <span class="text-gray-400">¥12/时</span>
-            </div>
-            ${stats.avgHourlyRate > 12 ?
-        `<div class="text-[10px] text-emerald-400 mt-1">↑ 高 ${((stats.avgHourlyRate / 12 - 1) * 100).toFixed(0)}%</div>` :
-        stats.avgHourlyRate < 12 ?
-          `<div class="text-[10px] text-red-400 mt-1">↓ 低 ${((1 - stats.avgHourlyRate / 12) * 100).toFixed(0)}%</div>` :
-          `<div class="text-[10px] text-gray-400 mt-1">= 持平</div>`
-      }
-          </div>
-        </div>
-        <div class="bg-surface p-4 rounded-xl border border-gray-700">
-          <div class="flex items-center gap-2 mb-2 text-gray-400">
-            ${Icons.Clock.replace('width="24"', 'width="16"').replace('height="24"', 'height="16"')}
-            <span class="text-xs uppercase font-bold">平均加班</span>
-          </div>
-          <div class="text-2xl font-mono text-red-400 font-bold">
-            ${Math.round(stats.avgOvertimeMinutes)}分
-          </div>
-        </div>
-        <div class="bg-surface p-4 rounded-xl border border-gray-700 col-span-2">
-          <div class="flex items-center gap-2 mb-2 text-gray-400">
-            ${Icons.TrendingDown.replace('width="24"', 'width="16"').replace('height="24"', 'height="16"')}
-            <span class="text-xs uppercase font-bold">最长工时</span>
-          </div>
-          <div class="text-2xl font-mono text-white font-bold">
-            ${stats.maxDurationHours.toFixed(2)} 小时
-          </div>
-        </div>
-      </div>
+    if (!stats) {
+      return `
+        ${navigationHtml}
+        <div class="text-center text-gray-500 py-10">此时间段无数据。</div>
+      `;
+    }
 
-      <!-- Chart -->
-      <div class="bg-surface p-4 rounded-xl border border-gray-700" style="height: 300px;">
-        <h3 class="text-sm font-bold text-gray-400 mb-4">有效时薪趋势</h3>
-        <canvas id="stats-chart"></canvas>
-      </div>
-    `;
+    // 周视图
+    if (period === 'week') {
+      return `
+        ${navigationHtml}
+        
+        <!-- Fun Message -->
+        ${stats.funMessage ? `
+          <div class="bg-gradient-to-r from-orange-900/30 to-red-900/30 border border-orange-500 rounded-xl p-4 mb-4">
+            <p class="text-orange-300 text-center font-bold">${stats.funMessage}</p>
+          </div>
+        ` : ''}
+
+        <!-- Cards -->
+        <div class="grid grid-cols-2 gap-3 mb-4">
+          <div class="bg-surface p-4 rounded-xl border border-gray-700">
+            <div class="flex items-center gap-2 mb-2 text-gray-400">
+              ${Icons.DollarSign.replace('width="24"', 'width="16"').replace('height="24"', 'height="16"')}
+              <span class="text-xs uppercase font-bold">周平均日薪</span>
+            </div>
+            <div class="text-2xl font-mono text-emerald-400 font-bold">
+              ${formatCurrency(stats.avgDailySalary)}
+            </div>
+          </div>
+          
+          <div class="bg-surface p-4 rounded-xl border border-gray-700">
+            <div class="flex items-center gap-2 mb-2 text-gray-400">
+              ${Icons.Clock.replace('width="24"', 'width="16"').replace('height="24"', 'height="16"')}
+              <span class="text-xs uppercase font-bold">周平均加班</span>
+            </div>
+            <div class="text-lg font-mono text-red-400 font-bold">
+              ${formatDurationDaysHours(stats.avgOvertimeDuration)}
+            </div>
+          </div>
+        </div>
+
+        <!-- Chart -->
+        <div class="bg-surface p-4 rounded-xl border border-gray-700" style="height: 300px;">
+          <h3 class="text-sm font-bold text-gray-400 mb-4">本周工作时薪</h3>
+          <canvas id="stats-chart"></canvas>
+        </div>
+      `;
+    }
+
+    // 月视图
+    if (period === 'month') {
+      return `
+        ${navigationHtml}
+        
+        <!-- Fun Message -->
+        ${stats.funMessage ? `
+          <div class="bg-gradient-to-r from-orange-900/30 to-red-900/30 border border-orange-500 rounded-xl p-4 mb-4">
+            <p class="text-orange-300 text-center font-bold">${stats.funMessage}</p>
+          </div>
+        ` : ''}
+
+        <!-- Cards -->
+        <div class="grid grid-cols-2 gap-3 mb-4">
+          <div class="bg-surface p-4 rounded-xl border border-gray-700">
+            <div class="flex items-center gap-2 mb-2 text-gray-400">
+              ${Icons.CalendarDays.replace('width="24"', 'width="16"').replace('height="24"', 'height="16"')}
+              <span class="text-xs uppercase font-bold">工作天数</span>
+            </div>
+            <div class="text-2xl font-mono text-white font-bold">
+              ${stats.workedDays}天
+            </div>
+            <div class="text-xs text-gray-500 mt-1">应工作${stats.workingDaysInMonth}天</div>
+          </div>
+          
+          <div class="bg-surface p-4 rounded-xl border border-gray-700">
+            <div class="flex items-center gap-2 mb-2 text-gray-400">
+              ${Icons.Clock.replace('width="24"', 'width="16"').replace('height="24"', 'height="16"')}
+              <span class="text-xs uppercase font-bold">加班天数</span>
+            </div>
+            <div class="text-2xl font-mono text-red-400 font-bold">
+              ${stats.overtimeDays}天
+            </div>
+          </div>
+
+          <div class="bg-surface p-4 rounded-xl border border-gray-700">
+            <div class="flex items-center gap-2 mb-2 text-gray-400">
+              ${Icons.DollarSign.replace('width="24"', 'width="16"').replace('height="24"', 'height="16"')}
+              <span class="text-xs uppercase font-bold">平均时薪</span>
+            </div>
+            <div class="text-xl font-mono text-emerald-400 font-bold">
+              ${formatCurrency(stats.avgHourlyRate)}/时
+            </div>
+          </div>
+
+          <div class="bg-surface p-4 rounded-xl border border-gray-700">
+            <div class="flex items-center gap-2 mb-2 text-gray-400">
+              ${Icons.TrendingUp.replace('width="24"', 'width="16"').replace('height="24"', 'height="16"')}
+              <span class="text-xs uppercase font-bold">当前日薪</span>
+            </div>
+            <div class="text-xl font-mono text-emerald-400 font-bold">
+              ${formatCurrency(stats.currentDailySalary)}
+            </div>
+            <div class="text-xs text-gray-500 mt-1">月进度${(stats.monthProgress * 100).toFixed(0)}%</div>
+          </div>
+
+          <div class="bg-surface p-4 rounded-xl border border-gray-700 col-span-2">
+            <div class="flex items-center gap-2 mb-2 text-gray-400">
+              ${Icons.Clock.replace('width="24"', 'width="16"').replace('height="24"', 'height="16"')}
+              <span class="text-xs uppercase font-bold">加班统计</span>
+            </div>
+            <div class="flex justify-between items-center">
+              <div>
+                <div class="text-xs text-gray-400">平均加班</div>
+                <div class="text-lg font-mono text-red-400 font-bold">
+                  ${formatDurationDaysHours(stats.avgOvertimeDuration)}
+                </div>
+              </div>
+              <div class="text-right">
+                <div class="text-xs text-gray-400">总加班</div>
+                <div class="text-lg font-mono text-red-400 font-bold">
+                  ${formatDurationDaysHours(stats.totalOvertimeDuration)}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Chart -->
+        ${stats.dailyData.length > 0 ? `
+          <div class="bg-surface p-4 rounded-xl border border-gray-700" style="height: 300px;">
+            <h3 class="text-sm font-bold text-gray-400 mb-4">本月每日时薪</h3>
+            <canvas id="stats-chart"></canvas>
+          </div>
+        ` : ''}
+      `;
+    }
+
+    // 年视图
+    if (period === 'year') {
+      return `
+        ${navigationHtml}
+
+        <!-- Cards -->
+        <div class="grid grid-cols-2 gap-3 mb-4">
+          <div class="bg-surface p-4 rounded-xl border border-gray-700">
+            <div class="flex items-center gap-2 mb-2 text-gray-400">
+              ${Icons.DollarSign.replace('width="24"', 'width="16"').replace('height="24"', 'height="16"')}
+              <span class="text-xs uppercase font-bold">年平均日薪</span>
+            </div>
+            <div class="text-xl font-mono text-emerald-400 font-bold">
+              ${formatCurrency(stats.avgDailySalary)}
+            </div>
+          </div>
+          
+          <div class="bg-surface p-4 rounded-xl border border-gray-700">
+            <div class="flex items-center gap-2 mb-2 text-gray-400">
+              ${Icons.TrendingUp.replace('width="24"', 'width="16"').replace('height="24"', 'height="16"')}
+              <span class="text-xs uppercase font-bold">年平均月薪</span>
+            </div>
+            <div class="text-xl font-mono text-emerald-400 font-bold">
+              ${formatCurrency(stats.avgMonthlySalary)}
+            </div>
+          </div>
+
+          <div class="bg-surface p-4 rounded-xl border border-gray-700 col-span-2">
+            <div class="flex items-center gap-2 mb-2 text-gray-400">
+              ${Icons.Clock.replace('width="24"', 'width="16"').replace('height="24"', 'height="16"')}
+              <span class="text-xs uppercase font-bold">年总加班时间</span>
+            </div>
+            <div class="text-2xl font-mono text-red-400 font-bold">
+              ${formatDurationDaysHours(stats.totalOvertimeDuration)}
+            </div>
+          </div>
+        </div>
+
+        <!-- Chart -->
+        <div class="bg-surface p-4 rounded-xl border border-gray-700" style="height: 300px;">
+          <h3 class="text-sm font-bold text-gray-400 mb-4">全年各月平均时薪</h3>
+          <canvas id="stats-chart"></canvas>
+        </div>
+      `;
+    }
+
+    return '';
   }
 
   calculateStats(period) {
@@ -534,7 +711,7 @@ class WageAwareApp {
                         <div class="mt-1 space-y-0.5">
                           ${entries.slice(0, 2).map(entry => `
                             <div class="text-[8px] ${entry.type === 'leave' ? 'text-blue-400' : isOvertime ? 'text-red-400' : 'text-emerald-400'} truncate">
-                              ${entry.note || (entry.type === 'leave' ? '请假' : '工作')}
+                              ${entry.type === 'leave' ? (entry.note || '请假') : '工作'}
                             </div>
                           `).join('')}
                           ${entries.length > 2 ? `<div class="text-[8px] text-gray-500">+${entries.length - 2}</div>` : ''}
@@ -859,13 +1036,60 @@ class WageAwareApp {
         const container = document.getElementById('stats-content');
         container.innerHTML = this.renderStatsContent(period);
 
+        // 重新绑定导航按钮事件
+        this.bindPeriodNavigationEvents();
+
         // 重新渲染图表
         this.renderChart(period);
       });
     });
 
+    // 绑定导航按钮事件
+    this.bindPeriodNavigationEvents();
+
     // 初始渲染图表
     setTimeout(() => this.renderChart('week'), 100);
+  }
+
+  bindPeriodNavigationEvents() {
+    const prevBtn = document.getElementById('prev-period');
+    const nextBtn = document.getElementById('next-period');
+
+    if (prevBtn) {
+      prevBtn.addEventListener('click', () => {
+        if (this.currentStatsPeriod === 'week') {
+          this.currentStatsWeek = addWeeks(this.currentStatsWeek, -1);
+        } else if (this.currentStatsPeriod === 'month') {
+          this.currentStatsMonth = addMonths(this.currentStatsMonth, -1);
+        } else if (this.currentStatsPeriod === 'year') {
+          this.currentStatsYear = addYears(this.currentStatsYear, -1);
+        }
+
+        // 重新渲染
+        const container = document.getElementById('stats-content');
+        container.innerHTML = this.renderStatsContent(this.currentStatsPeriod);
+        this.bindPeriodNavigationEvents();
+        this.renderChart(this.currentStatsPeriod);
+      });
+    }
+
+    if (nextBtn) {
+      nextBtn.addEventListener('click', () => {
+        if (this.currentStatsPeriod === 'week') {
+          this.currentStatsWeek = addWeeks(this.currentStatsWeek, 1);
+        } else if (this.currentStatsPeriod === 'month') {
+          this.currentStatsMonth = addMonths(this.currentStatsMonth, 1);
+        } else if (this.currentStatsPeriod === 'year') {
+          this.currentStatsYear = addYears(this.currentStatsYear, 1);
+        }
+
+        // 重新渲染
+        const container = document.getElementById('stats-content');
+        container.innerHTML = this.renderStatsContent(this.currentStatsPeriod);
+        this.bindPeriodNavigationEvents();
+        this.renderChart(this.currentStatsPeriod);
+      });
+    }
   }
 
   bindCalendarEvents() {
@@ -1358,8 +1582,27 @@ class WageAwareApp {
     const canvas = document.getElementById('stats-chart');
     if (!canvas) return;
 
-    const stats = this.calculateStats(period);
-    if (!stats) return;
+    let stats, labels, data;
+
+    if (period === 'week') {
+      stats = calculateWeekStats(this.history, this.settings, this.currentStatsWeek);
+      if (!stats) return;
+
+      labels = stats.dailyData.map(d => d.label);
+      data = stats.dailyData.map(d => d.hourlyRate);
+    } else if (period === 'month') {
+      stats = calculateMonthStats(this.history, this.settings, this.currentStatsMonth);
+      if (!stats || !stats.dailyData || stats.dailyData.length === 0) return;
+
+      labels = stats.dailyData.map(d => d.label);
+      data = stats.dailyData.map(d => d.hourlyRate);
+    } else { // year
+      stats = calculateYearStats(this.history, this.settings, this.currentStatsYear);
+      if (!stats) return;
+
+      labels = stats.monthlyData.map(d => d.label);
+      data = stats.monthlyData.map(d => d.avgHourlyRate);
+    }
 
     // 销毁旧图表
     if (this.chart) {
@@ -1371,13 +1614,13 @@ class WageAwareApp {
     this.chart = new Chart(ctx, {
       type: 'bar',
       data: {
-        labels: stats.chartData.map(d => d.date),
+        labels: labels,
         datasets: [{
-          label: '有效时薪',
-          data: stats.chartData.map(d => d.rate),
-          backgroundColor: stats.chartData.map(d => {
-            if (d.type === 'leave') return '#3b82f6';
-            return d.rate < (stats.avgHourlyRate * 0.9) ? '#ef4444' : '#10b981';
+          label: period === 'year' ? '平均时薪' : '时薪',
+          data: data,
+          backgroundColor: data.map(rate => {
+            if (rate === 0) return '#374151'; // 灰色表示无数据
+            return rate < 12 ? '#ef4444' : '#10b981'; // 红色表示低于平均，绿色表示正常
           }),
           borderRadius: 4,
         }]
@@ -1394,7 +1637,7 @@ class WageAwareApp {
             borderColor: '#334155',
             borderWidth: 1,
             callbacks: {
-              label: (context) => `¥${context.parsed.y.toFixed(2)}`
+              label: (context) => `¥${context.parsed.y.toFixed(2)}/时`
             }
           }
         },
@@ -1414,7 +1657,7 @@ class WageAwareApp {
           x: {
             ticks: {
               color: '#64748b',
-              font: { size: 10 }
+              font: { size: period === 'month' ? 8 : 10 } // 月视图字体更小
             },
             grid: {
               display: false
