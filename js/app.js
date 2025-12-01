@@ -707,6 +707,23 @@ class WageAwareApp {
             ` : '<div class="text-xs text-gray-500">暂无节假日设置</div>'}
           </div>
 
+          <!-- 数据管理 -->
+          <div class="border-t border-gray-700 pt-4 mt-4">
+            <label class="text-sm text-gray-400 font-bold block mb-3">数据管理</label>
+            <div class="flex gap-2 mb-2">
+              <button id="export-data-btn" type="button" class="flex-1 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-500 flex items-center justify-center gap-2">
+                <span>📤</span>
+                <span>导出数据</span>
+              </button>
+              <button id="import-data-btn" type="button" class="flex-1 bg-green-600 text-white px-4 py-2 rounded hover:bg-green-500 flex items-center justify-center gap-2">
+                <span>📥</span>
+                <span>导入数据</span>
+              </button>
+            </div>
+            <input type="file" id="import-file-input" accept=".json" class="hidden">
+            <p class="text-xs text-gray-500">导出所有数据以便在其他设备导入同步</p>
+          </div>
+
           <div class="flex gap-2">
             <button id="save-settings-btn" class="flex-1 bg-primary text-dark font-bold py-3 rounded hover:bg-emerald-400">
               保存设置
@@ -1018,6 +1035,22 @@ class WageAwareApp {
       importHolidaysBtn.addEventListener('click', () => this.importHolidays());
     }
 
+    // 导出数据
+    const exportDataBtn = document.getElementById('export-data-btn');
+    if (exportDataBtn) {
+      exportDataBtn.addEventListener('click', () => this.handleExportData());
+    }
+
+    // 导入数据
+    const importDataBtn = document.getElementById('import-data-btn');
+    const importFileInput = document.getElementById('import-file-input');
+    if (importDataBtn && importFileInput) {
+      importDataBtn.addEventListener('click', () => {
+        importFileInput.click();
+      });
+      importFileInput.addEventListener('change', (e) => this.handleImportData(e));
+    }
+
     // 删除单个节假日
     document.querySelectorAll('.remove-holiday-btn').forEach(btn => {
       btn.addEventListener('click', (e) => {
@@ -1048,6 +1081,73 @@ class WageAwareApp {
     this.settings.holidays.splice(index, 1);
     Storage.saveSettings(this.settings);
     this.switchView('settings');
+  }
+
+  // 导出数据
+  handleExportData() {
+    try {
+      const data = Storage.exportAllData();
+      const jsonStr = JSON.stringify(data, null, 2);
+      const blob = new Blob([jsonStr], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+
+      // 创建下载链接
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `wage-aware-backup-${formatDate(new Date())}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      alert('✅ 数据导出成功！');
+    } catch (error) {
+      console.error('导出失败:', error);
+      alert('❌ 导出失败：' + error.message);
+    }
+  }
+
+  // 导入数据
+  handleImportData(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const importedData = JSON.parse(e.target.result);
+
+        // 询问用户是否覆盖设置
+        const replaceSettings = confirm(
+          '是否使用导入文件中的设置覆盖当前设置？\n\n' +
+          '点击"确定"将覆盖当前设置\n' +
+          '点击"取消"将保留当前设置，只导入历史记录'
+        );
+
+        // 导入数据
+        Storage.importData(importedData, {
+          mergeHistory: true,
+          replaceSettings: replaceSettings
+        });
+
+        // 重新加载数据
+        this.settings = Storage.getSettings();
+        this.history = Storage.getHistory();
+
+        alert('✅ 数据导入成功！');
+
+        // 刷新页面显示
+        this.switchView('settings');
+      } catch (error) {
+        console.error('导入失败:', error);
+        alert('❌ 导入失败：' + error.message);
+      }
+    };
+
+    reader.readAsText(file);
+
+    // 清空文件输入，允许重复导入同一文件
+    event.target.value = '';
   }
 
   // ========== 业务逻辑 ==========

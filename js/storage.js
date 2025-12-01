@@ -67,6 +67,79 @@ const Storage = {
         return history;
     },
 
+    // 导出所有数据
+    exportAllData() {
+        const data = {
+            version: '1.0',
+            exportTime: new Date().toISOString(),
+            settings: this.getSettings(),
+            history: this.getHistory()
+        };
+        return data;
+    },
+
+    // 导入数据（智能合并）
+    importData(importedData, options = { mergeHistory: true, replaceSettings: false }) {
+        if (!importedData || !importedData.version) {
+            throw new Error('无效的数据格式');
+        }
+
+        // 导入设置
+        if (importedData.settings) {
+            if (options.replaceSettings) {
+                this.saveSettings(importedData.settings);
+            }
+            // 否则保留当前设置
+        }
+
+        // 导入历史记录
+        if (importedData.history && Array.isArray(importedData.history)) {
+            if (options.mergeHistory) {
+                // 合并模式：使用 addHistoryEntry 逐条添加，自动去重
+                const currentHistory = this.getHistory();
+
+                // 先保存当前历史，以便回滚
+                const backup = [...currentHistory];
+
+                try {
+                    // 遍历导入的记录
+                    importedData.history.forEach(entry => {
+                        // 检查是否已存在（基于日期和类型的简单去重）
+                        const entryDate = formatDate(new Date(entry.date));
+                        const isDuplicate = currentHistory.some(existing => {
+                            const existingDate = formatDate(new Date(existing.date));
+                            // 工作记录按日期去重（会自动合并）
+                            if (entry.type === 'work' && existing.type === 'work') {
+                                return existingDate === entryDate;
+                            }
+                            // 请假记录按日期+note去重
+                            if (entry.type === 'leave' && existing.type === 'leave') {
+                                return existingDate === entryDate && existing.note === entry.note;
+                            }
+                            return false;
+                        });
+
+                        if (!isDuplicate) {
+                            this.addHistoryEntry(entry);
+                        }
+                    });
+                } catch (error) {
+                    // 回滚
+                    this.saveHistory(backup);
+                    throw error;
+                }
+            } else {
+                // 替换模式：直接替换所有历史记录
+                this.saveHistory(importedData.history);
+            }
+        }
+
+        return {
+            settings: this.getSettings(),
+            history: this.getHistory()
+        };
+    },
+
     // 清空所有数据
     clearAll() {
         localStorage.removeItem(STORAGE_KEYS.SETTINGS);
